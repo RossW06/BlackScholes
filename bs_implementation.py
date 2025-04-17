@@ -1,212 +1,156 @@
 import streamlit as st
-import yfinance as yf
 import numpy as np
+import matplotlib.pyplot as plt
+import yfinance as yf
 from scipy.stats import norm
-from datetime import datetime, time
-import plotly.graph_objects as go
-import plotly.express as px
+from datetime import datetime
 
-# Set Streamlit page configuration
+# Page config MUST come first
 st.set_page_config(page_title="Black-Scholes Option Pricing Dashboard", layout="wide")
 
-# Black-Scholes Formula for Option Pricing
-def black_scholes_price(S, K, T, r, sigma, option_type='call'):
-    """
-    The Black-Scholes formula calculates the theoretical price of a European option.
-    This formula is crucial for understanding how various factors influence the pricing of options.
+st.title("📈 Black-Scholes Option Pricing Model")
 
-    S: Stock price (current price of the stock)
-    K: Strike price (price at which the option holder can buy or sell the stock)
-    T: Time to expiration (the time remaining until the option expires, expressed in years)
-    r: Risk-free interest rate (the return from a completely risk-free investment like a Treasury bond)
-    sigma: Volatility (a measure of how much the stock price fluctuates)
-    option_type: 'call' or 'put' indicating whether the option is a call or put
-    """
+# Black-Scholes option pricing
+@st.cache_data
+def black_scholes_price(S, K, T, r, sigma, option_type='call'):
     d1 = (np.log(S / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * np.sqrt(T))
     d2 = d1 - sigma * np.sqrt(T)
 
     if option_type == 'call':
-        # For call options, the price is calculated as: 
         return S * norm.cdf(d1) - K * np.exp(-r * T) * norm.cdf(d2)
     else:
-        # For put options, the price is calculated as: 
         return K * np.exp(-r * T) * norm.cdf(-d2) - S * norm.cdf(-d1)
 
 # Greeks calculation
+@st.cache_data
 def calculate_greeks(S, K, T, r, sigma, option_type='call'):
-    """
-    The Greeks measure the sensitivity of the option price to different factors. 
-    These include Delta, Gamma, Vega, Theta, and Rho.
-
-    - Delta measures how much the option price changes when the stock price changes.
-    - Gamma measures how much Delta changes when the stock price changes.
-    - Vega measures how much the option price changes when the volatility changes.
-    - Theta measures how much the option price changes as time passes (time decay).
-    - Rho measures how much the option price changes with changes in interest rates.
-    """
     d1 = (np.log(S / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * np.sqrt(T))
     d2 = d1 - sigma * np.sqrt(T)
 
     delta = norm.cdf(d1) if option_type == 'call' else -norm.cdf(-d1)
-    gamma = norm.pdf(d1) / (S * sigma * np.sqrt(T))  # Sensitivity to changes in the stock price
-    vega = S * norm.pdf(d1) * np.sqrt(T) / 100  # Sensitivity to changes in volatility
+    gamma = norm.pdf(d1) / (S * sigma * np.sqrt(T))
+    vega = S * norm.pdf(d1) * np.sqrt(T) / 100
     theta = (-S * norm.pdf(d1) * sigma / (2 * np.sqrt(T)) -
-             r * K * np.exp(-r * T) * norm.cdf(d2 if option_type == 'call' else -d2)) / 365  # Sensitivity to time decay
-    rho = (K * T * np.exp(-r * T) * norm.cdf(d2 if option_type == 'call' else -d2)) / 100  # Sensitivity to interest rate changes
+             r * K * np.exp(-r * T) * norm.cdf(d2 if option_type == 'call' else -d2)) / 365
+    rho = (K * T * np.exp(-r * T) * norm.cdf(d2 if option_type == 'call' else -d2)) / 100
 
-    return {'Delta': delta, 'Gamma': gamma, 'Vega': vega, 'Theta': theta, 'Rho': rho}
+    return {
+        'Delta': delta,
+        'Gamma': gamma,
+        'Vega': vega,
+        'Theta': theta,
+        'Rho': rho
+    }
 
-# Streamlit app layout
-st.title("📊 **Black-Scholes Option Pricing Dashboard**")
+# Sidebar inputs
+st.sidebar.header("Input Parameters")
+ticker = st.sidebar.text_input("Stock Ticker", value="AAPL")
+expiry = st.sidebar.date_input("Expiration Date", value=datetime(2025, 6, 21))
+strike_price = st.sidebar.number_input("Strike Price", min_value=1.0, value=180.0)
+risk_free_rate = st.sidebar.slider("Risk-Free Rate (annual %)", min_value=0.0, max_value=10.0, value=2.5) / 100
+volatility = st.sidebar.slider("Implied Volatility (annual %)", min_value=1.0, max_value=200.0, value=30.0) / 100
+option_type = st.sidebar.selectbox("Option Type", ["call", "put"])
+show_graph = st.sidebar.checkbox("Show Stock Price Chart", value=True)
+show_chain = st.sidebar.checkbox("Show Option Chain", value=False)
 
-# Sidebar input
-col1, col2 = st.columns([1, 2])
-with col1:
-    ticker = st.text_input("Stock Ticker", value="AAPL", help="Enter the stock ticker symbol (e.g., AAPL for Apple).")
-    option_type = st.radio("Option Type", ["call", "put"], help="Select the option type (Call or Put).")
-    expiry_date = st.date_input("Expiration Date", help="Pick the expiration date for the option.")
-    strike = st.number_input("Strike Price", min_value=1.0, value=180.0, help="Enter the strike price of the option.")
-    volatility_type = st.selectbox("Volatility Source", ["Implied Volatility", "Historical Volatility"],
-                                  help="Choose between implied or historical volatility to calculate option price.")
+# Fetch current stock data
+stock = yf.Ticker(ticker)
+stock_data = stock.history(period="1mo")
+current_price = stock.history(period="1d")['Close'][0]
+st.write(f"### Current {ticker} Price: ${current_price:.2f}")
 
-with col2:
-    show_chain = st.checkbox("Show Option Chain", help="Check to view the full option chain.")
+# Time to expiry in years
+time_to_expiry = (expiry - datetime.today().date()).days / 365
 
-# Button to trigger calculation
-calc_button = st.button("📈 **Calculate Option**", help="Click to calculate the option price and Greeks")
+# Pricing and Greeks
+option_price = black_scholes_price(current_price, strike_price, time_to_expiry, risk_free_rate, volatility, option_type)
+greeks = calculate_greeks(current_price, strike_price, time_to_expiry, risk_free_rate, volatility, option_type)
 
-# If button is clicked, perform calculations
-if calc_button:
+st.subheader("Option Price and Greeks")
+st.markdown(f"**Black-Scholes {option_type.capitalize()} Price**: ${option_price:.2f}")
+
+col1, col2, col3 = st.columns(3)
+col1.metric("Delta", f"{greeks['Delta']:.3f}")
+col2.metric("Gamma", f"{greeks['Gamma']:.3f}")
+col3.metric("Vega", f"{greeks['Vega']:.3f}")
+col1.metric("Theta", f"{greeks['Theta']:.3f}")
+col2.metric("Rho", f"{greeks['Rho']:.3f}")
+
+st.markdown("""
+- **Delta**: Change in option price per $1 move in the stock.
+- **Gamma**: Sensitivity of Delta to stock price changes.
+- **Vega**: Change in option price with 1% change in volatility.
+- **Theta**: Daily time decay of the option.
+- **Rho**: Change in option price with 1% change in interest rate.
+""")
+
+# Greeks Plot (Matplotlib)
+greek_values = {g: [] for g in ['Delta', 'Gamma', 'Vega', 'Theta', 'Rho']}
+strike_range = np.arange(current_price - 20, current_price + 20, 2)
+for K in strike_range:
+    g = calculate_greeks(current_price, K, time_to_expiry, risk_free_rate, volatility, option_type)
+    for key in greek_values:
+        greek_values[key].append(g[key])
+
+fig, ax = plt.subplots(figsize=(10, 6))
+colors = {
+    'Delta': 'orange',
+    'Gamma': 'cyan',
+    'Vega': 'magenta',
+    'Theta': 'green',
+    'Rho': 'red'
+}
+for greek in greek_values:
+    ax.plot(strike_range, greek_values[greek], label=greek, color=colors[greek], linewidth=2)
+
+ax.set_title('Greeks vs Strike Price')
+ax.set_xlabel('Strike Price')
+ax.set_ylabel('Greek Value')
+ax.grid(True)
+ax.legend()
+st.pyplot(fig)
+
+st.markdown("""
+**Greeks vs Strike Price**:
+- Delta and Rho generally increase with strike for calls.
+- Gamma and Vega peak near the current stock price.
+- Theta is most negative near the money.
+""")
+
+# Stock price graph
+if show_graph and stock_data is not None:
     try:
-        # Get the stock price
-        stock = yf.Ticker(ticker)
-        stock_price = stock.history(period='1d')['Close'].iloc[-1]
-        
-        # Calculate time to expiration
-        expiry_str = expiry_date.strftime("%Y-%m-%d")
-        expiry_datetime = datetime.combine(expiry_date, time(16, 0))
-        time_to_expiry = (expiry_datetime - datetime.now()).total_seconds() / (365 * 24 * 60 * 60)
-        
-        # Risk-free rate assumption (this is a general constant)
-        risk_free_rate = 0.05
-        
-        # Option chain data for selected expiration
-        chain = stock.option_chain(expiry_str)
-        options_data = chain.calls if option_type == 'call' else chain.puts
-        
-        # Calculate volatility based on selection
-        if volatility_type == "Implied Volatility":
-            selected_option = options_data[options_data['strike'] == strike]
-            if not selected_option.empty:
-                volatility = selected_option['impliedVolatility'].values[0]
-            else:
-                volatility_type = "Historical Volatility"
-        
-        if volatility_type == "Historical Volatility":
-            historical_data = stock.history(period="1y")
-            log_returns = np.log(historical_data['Close'] / historical_data['Close'].shift(1)).dropna()
-            volatility = np.std(log_returns) * np.sqrt(252)  # Volatility based on annualized standard deviation
-        
-        # Option price using Black-Scholes formula
-        option_price = black_scholes_price(stock_price, strike, time_to_expiry, risk_free_rate, volatility, option_type)
-        
-        # Calculate the Greeks
-        greeks = calculate_greeks(stock_price, strike, time_to_expiry, risk_free_rate, volatility, option_type)
-        
-        # Display results
-        st.success("✅ Calculation Complete")
-        st.subheader("Option Price")
-        st.metric("Black-Scholes Price", f"${option_price:.2f}")
+        fig2, ax2 = plt.subplots(figsize=(10, 4))
+        ax2.plot(stock_data.index, stock_data['Close'], color='skyblue', linewidth=2)
+        ax2.set_title(f"{ticker} Stock Price (Last 30 Days)")
+        ax2.set_xlabel("Date")
+        ax2.set_ylabel("Price (USD)")
+        ax2.grid(True)
+        fig2.autofmt_xdate()
+        st.pyplot(fig2)
+
         st.markdown("""
-            **Black-Scholes Option Price:** This is the theoretical price of the option, 
-            calculated using the Black-Scholes formula. The formula incorporates several factors:
-            - **Stock price (S):** The current price of the underlying stock.
-            - **Strike price (K):** The price at which the option holder can buy or sell the stock.
-            - **Time to expiration (T):** The remaining time until the option expires, usually in years.
-            - **Risk-free rate (r):** The theoretical rate of return on a risk-free investment, such as a government bond.
-            - **Volatility (σ):** The degree to which the stock price fluctuates, representing the risk of the stock.
-
-        """)
-        
-        st.subheader("Greeks")
-        for greek, value in greeks.items():
-            st.write(f"**{greek}:** {value:.4f}")
-        st.markdown("""
-            The **Greeks** represent the sensitivity of the option price to different factors:
-            - **Delta**: Measures how much the option price changes when the stock price changes. A **Delta** of 0.50 means that for every £1 increase in the stock price, the option price will increase by £0.50.
-            - **Gamma**: Measures how much **Delta** changes when the stock price changes. It indicates how sensitive the **Delta** is to stock price movements.
-            - **Vega**: Measures how much the option price changes when volatility changes. A higher **Vega** means the option is more sensitive to changes in volatility.
-            - **Theta**: Measures the effect of time on the option price. **Theta** represents time decay, indicating how much the option price will decrease as time passes, assuming other factors remain constant.
-            - **Rho**: Measures the sensitivity of the option price to changes in interest rates. If the risk-free rate increases, the option price may increase (for a call) or decrease (for a put).
-
-            These Greeks provide valuable insights into the potential movements of an option's price under different market conditions.
-
-        """)
-
-        # Plot Greeks vs Strike Price
-        strike_prices = np.arange(stock_price - 20, stock_price + 20, 5)
-        greek_values = {greek: [] for greek in greeks}
-        for K in strike_prices:
-            price = black_scholes_price(stock_price, K, time_to_expiry, risk_free_rate, volatility, option_type)
-            greek_results = calculate_greeks(stock_price, K, time_to_expiry, risk_free_rate, volatility, option_type)
-            for greek, value in greek_results.items():
-                greek_values[greek].append(value)
-        
-        greek_fig = go.Figure()
-        for greek, values in greek_values.items():
-            greek_fig.add_trace(go.Scatter(x=strike_prices, y=values, mode='lines', name=greek, line=dict(width=3)))
-        
-        greek_fig.update_layout(
-            title="Greeks vs Strike Price", 
-            xaxis_title="Strike Price", 
-            yaxis_title="Greek Value", 
-            template="plotly_dark",
-            xaxis=dict(showgrid=True),
-            yaxis=dict(showgrid=True)
-        )
-        st.plotly_chart(greek_fig, use_container_width=True)
-        st.markdown("""
-            **Greeks vs Strike Price Graph**: This graph shows how the values of the Greeks change with different strike prices. 
-            It helps you understand how sensitive the option's price is to changes in strike price, stock price, and time. For instance:
-            - **Delta** tends to increase for calls as the strike price decreases (when in-the-money).
-            - **Gamma** shows the curvature in Delta, indicating how rapidly Delta changes with price movements.
-
-        """)
-
-        # Plot Stock Price over Time
-        stock_data = stock.history(period="1mo")
-        stock_fig = px.line(stock_data, x=stock_data.index, y="Close", title=f"{ticker} Stock Price (Last 30 Days)")
-        stock_fig.update_layout(
-            xaxis_title="Date", 
-            yaxis_title="Price (USD)", 
-            template="plotly_dark",
-            xaxis=dict(showgrid=True),
-            yaxis=dict(showgrid=True)
-        )
-        st.plotly_chart(stock_fig, use_container_width=True)
-        st.markdown("""
-            **Stock Price Over Time**: This graph shows the stock's price movement over the last 30 days. 
-            It's crucial because the **option price** is directly tied to the stock price. Volatility, which affects the option's price, is also influenced by stock price movements.
+        **Stock Price Over Time**: 
+        This shows recent stock price movement. Black-Scholes uses current price and assumes log-normal behavior, so recent trends help contextualize the model.
         """)
 
     except Exception as e:
         st.error(f"❌ Error: {e}")
 
-# Option Chain Viewer
+# Option chain (optional)
 if show_chain:
     try:
+        expiry_str = expiry.strftime("%Y-%m-%d")
         chain = stock.option_chain(expiry_str)
         options_df = chain.calls if option_type == 'call' else chain.puts
         st.subheader(f"Option Chain for {ticker} ({expiry_str})")
         st.dataframe(options_df[['strike', 'lastPrice', 'bid', 'ask', 'impliedVolatility']])
         st.markdown("""
-            **Option Chain**: The option chain provides details on various options with different strike prices and expiration dates. 
-            The option chain includes:
-            - **Strike Price**: The price at which the option can be exercised.
-            - **Last Price**: The most recent price of the option.
-            - **Bid and Ask**: The highest price a buyer is willing to pay and the lowest price a seller is willing to accept.
-            - **Implied Volatility**: The market's expectation of the stock's future volatility, which plays a critical role in the option price.
-
+        **Option Chain Explanation**:
+        - **Strike**: Exercise price.
+        - **Last Price**: Most recent option price.
+        - **Bid/Ask**: Market buy/sell prices.
+        - **Implied Volatility**: Market's forecast of future volatility.
         """)
     except Exception as e:
         st.error(f"❌ Error: {e}")
