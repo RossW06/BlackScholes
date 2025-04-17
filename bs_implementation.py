@@ -133,7 +133,7 @@ if calc_button:
             st.write(f"**{greek}:** {value:.4f}")
         st.markdown("""
             The **Greeks** represent the sensitivity of the option price to different factors:
-            - **Delta**: Measures how much the option price changes when the stock price changes. A **Delta** of 0.50 means that for every $1 increase in the stock price, the option price will increase by $0.50.
+            - **Delta**: Measures how much the option price changes when the stock price changes. A **Delta** of 0.50 means that for every £1 increase in the stock price, the option price will increase by £0.50.
             - **Gamma**: Measures how much **Delta** changes when the stock price changes. It indicates how sensitive the **Delta** is to stock price movements.
             - **Vega**: Measures how much the option price changes when volatility changes. A higher **Vega** means the option is more sensitive to changes in volatility.
             - **Theta**: Measures the effect of time on the option price. **Theta** represents time decay, indicating how much the option price will decrease as time passes, assuming other factors remain constant.
