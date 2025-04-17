@@ -97,7 +97,3 @@ try:
 
 except Exception as e:
     st.error(f"⚠️ Error: {e}")
-        st.plotly_chart(fig, use_container_width=True)
-
-    except Exception as e:
-        st.error(f"Could not fetch option chain: {e}")
