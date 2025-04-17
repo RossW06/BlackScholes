@@ -6,43 +6,6 @@ from datetime import datetime, time
 import plotly.graph_objects as go
 import plotly.express as px
 
-# Custom CSS for styling
-st.markdown("""
-    <style>
-    .stButton > button {
-        background-color: #4CAF50;
-        color: white;
-        font-size: 18px;
-        padding: 10px 24px;
-        border-radius: 8px;
-        border: none;
-        cursor: pointer;
-    }
-    .stButton > button:hover {
-        background-color: #45a049;
-    }
-    .stMetric > div {
-        font-size: 24px;
-    }
-    .stSidebar [data-testid="stExpander"] {
-        border-radius: 12px;
-        background-color: #F0F0F0;
-    }
-    .stSidebar .stTextInput input {
-        font-size: 16px;
-    }
-    .stRadio > div {
-        font-size: 16px;
-    }
-    .stSelectbox > div {
-        font-size: 16px;
-    }
-    .stDateInput {
-        font-size: 16px;
-    }
-    </style>
-""", unsafe_allow_html=True)
-
 # Black-Scholes Formula for Option Pricing
 def black_scholes_price(S, K, T, r, sigma, option_type='call'):
     d1 = (np.log(S / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * np.sqrt(T))
@@ -69,23 +32,22 @@ def calculate_greeks(S, K, T, r, sigma, option_type='call'):
 
 # Streamlit app layout
 st.set_page_config(page_title="Black-Scholes Option Pricing Dashboard", layout="wide")
-st.title("📊 **Black-Scholes Option Pricing**")
+st.title("📊 Black-Scholes Option Pricing")
 
 # Sidebar input
 col1, col2 = st.columns([1, 2])
 with col1:
-    ticker = st.text_input("Stock Ticker", value="AAPL", help="Enter the stock ticker symbol.")
-    option_type = st.radio("Option Type", ["call", "put"], help="Select the option type (Call or Put).")
-    expiry_date = st.date_input("Expiration Date", help="Pick the expiration date for the option.")
-    strike = st.number_input("Strike Price", min_value=1.0, value=180.0, help="Enter the strike price.")
-    volatility_type = st.selectbox("Volatility Source", ["Implied Volatility", "Historical Volatility"],
-                                  help="Choose between implied or historical volatility.")
+    ticker = st.text_input("Stock Ticker", value="AAPL")
+    option_type = st.radio("Option Type", ["call", "put"])
+    expiry_date = st.date_input("Expiration Date")
+    strike = st.number_input("Strike Price", min_value=1.0, value=180.0)
+    volatility_type = st.selectbox("Volatility", ["Implied Volatility", "Historical Volatility"])
 
 with col2:
-    show_chain = st.checkbox("Show Option Chain", help="Check to view the full option chain.")
+    show_chain = st.checkbox("Show Option Chain")
 
 # Button to trigger calculation
-calc_button = st.button("📈 **Calculate Option**", help="Click to calculate the option price and Greeks")
+calc_button = st.button("Calculate")
 
 # If button is clicked, perform calculations
 if calc_button:
@@ -118,13 +80,13 @@ if calc_button:
         greeks = calculate_greeks(stock_price, strike, time_to_expiry, risk_free_rate, volatility, option_type)
         
         # Display results
-        st.success("✅ Calculation Complete")
+        st.success("Calculation Complete")
         st.subheader("Option Price")
         st.metric("Black-Scholes Price", f"${option_price:.2f}")
         
         st.subheader("Greeks")
         for greek, value in greeks.items():
-            st.write(f"**{greek}:** {value:.4f}")
+            st.write(f"{greek}: {value:.4f}")
         
         # Plot Greeks vs Strike Price
         strike_prices = np.arange(stock_price - 20, stock_price + 20, 5)
@@ -137,32 +99,19 @@ if calc_button:
         
         greek_fig = go.Figure()
         for greek, values in greek_values.items():
-            greek_fig.add_trace(go.Scatter(x=strike_prices, y=values, mode='lines', name=greek, line=dict(width=3)))
+            greek_fig.add_trace(go.Scatter(x=strike_prices, y=values, mode='lines', name=greek))
         
-        greek_fig.update_layout(
-            title="Greeks vs Strike Price", 
-            xaxis_title="Strike Price", 
-            yaxis_title="Greek Value", 
-            template="plotly_dark",
-            xaxis=dict(showgrid=True),
-            yaxis=dict(showgrid=True)
-        )
+        greek_fig.update_layout(title="Greeks vs Strike Price", xaxis_title="Strike Price", yaxis_title="Greek Value")
         st.plotly_chart(greek_fig, use_container_width=True)
         
         # Plot Stock Price over Time
         stock_data = stock.history(period="1mo")
         stock_fig = px.line(stock_data, x=stock_data.index, y="Close", title=f"{ticker} Stock Price (Last 30 Days)")
-        stock_fig.update_layout(
-            xaxis_title="Date", 
-            yaxis_title="Price (USD)", 
-            template="plotly_dark",
-            xaxis=dict(showgrid=True),
-            yaxis=dict(showgrid=True)
-        )
+        stock_fig.update_layout(xaxis_title="Date", yaxis_title="Price (USD)")
         st.plotly_chart(stock_fig, use_container_width=True)
     
     except Exception as e:
-        st.error(f"❌ Error: {e}")
+        st.error(f"Error: {e}")
 
 # Option Chain Viewer
 if show_chain:
@@ -173,13 +122,8 @@ if show_chain:
         st.dataframe(options_df[['strike', 'lastPrice', 'bid', 'ask', 'impliedVolatility']])
         
         # Plot Implied Volatility Smile
-        iv_fig = px.line(options_df, x="strike", y="impliedVolatility", title="Implied Volatility Smile", markers=True)
-        iv_fig.update_layout(
-            template="plotly_dark",
-            xaxis_title="Strike Price", 
-            yaxis_title="Implied Volatility"
-        )
+        iv_fig = px.line(options_df, x="strike", y="impliedVolatility", title="Implied Volatility Smile")
         st.plotly_chart(iv_fig, use_container_width=True)
     
     except Exception as e:
-        st.error(f"❌ Error fetching option chain: {e}")
+        st.error(f"Error fetching option chain: {e}")
