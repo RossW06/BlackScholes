@@ -6,48 +6,58 @@ from datetime import datetime, time
 import plotly.graph_objects as go
 import plotly.express as px
 
-# Ensure this is the very first Streamlit function
+# Set Streamlit page configuration
 st.set_page_config(page_title="Black-Scholes Option Pricing Dashboard", layout="wide")
 
 # Black-Scholes Formula for Option Pricing
 def black_scholes_price(S, K, T, r, sigma, option_type='call'):
     """
-    The Black-Scholes formula is used to calculate the theoretical price of an option.
-    S: Stock price
-    K: Strike price
-    T: Time to expiration in years
-    r: Risk-free interest rate
-    sigma: Volatility of the stock
-    option_type: 'call' or 'put' for call or put options
+    The Black-Scholes formula calculates the theoretical price of a European option.
+    This formula is crucial for understanding how various factors influence the pricing of options.
+
+    S: Stock price (current price of the stock)
+    K: Strike price (price at which the option holder can buy or sell the stock)
+    T: Time to expiration (the time remaining until the option expires, expressed in years)
+    r: Risk-free interest rate (the return from a completely risk-free investment like a Treasury bond)
+    sigma: Volatility (a measure of how much the stock price fluctuates)
+    option_type: 'call' or 'put' indicating whether the option is a call or put
     """
     d1 = (np.log(S / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * np.sqrt(T))
     d2 = d1 - sigma * np.sqrt(T)
-    
+
     if option_type == 'call':
+        # For call options, the price is calculated as: 
         return S * norm.cdf(d1) - K * np.exp(-r * T) * norm.cdf(d2)
     else:
+        # For put options, the price is calculated as: 
         return K * np.exp(-r * T) * norm.cdf(-d2) - S * norm.cdf(-d1)
 
 # Greeks calculation
 def calculate_greeks(S, K, T, r, sigma, option_type='call'):
     """
-    Calculate the option Greeks (Delta, Gamma, Vega, Theta, Rho) for pricing sensitivity.
-    These values help understand how sensitive the option's price is to different factors.
+    The Greeks measure the sensitivity of the option price to different factors. 
+    These include Delta, Gamma, Vega, Theta, and Rho.
+
+    - Delta measures how much the option price changes when the stock price changes.
+    - Gamma measures how much Delta changes when the stock price changes.
+    - Vega measures how much the option price changes when the volatility changes.
+    - Theta measures how much the option price changes as time passes (time decay).
+    - Rho measures how much the option price changes with changes in interest rates.
     """
     d1 = (np.log(S / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * np.sqrt(T))
     d2 = d1 - sigma * np.sqrt(T)
-    
+
     delta = norm.cdf(d1) if option_type == 'call' else -norm.cdf(-d1)
     gamma = norm.pdf(d1) / (S * sigma * np.sqrt(T))  # Sensitivity to changes in the stock price
     vega = S * norm.pdf(d1) * np.sqrt(T) / 100  # Sensitivity to changes in volatility
     theta = (-S * norm.pdf(d1) * sigma / (2 * np.sqrt(T)) -
              r * K * np.exp(-r * T) * norm.cdf(d2 if option_type == 'call' else -d2)) / 365  # Sensitivity to time decay
     rho = (K * T * np.exp(-r * T) * norm.cdf(d2 if option_type == 'call' else -d2)) / 100  # Sensitivity to interest rate changes
-    
+
     return {'Delta': delta, 'Gamma': gamma, 'Vega': vega, 'Theta': theta, 'Rho': rho}
 
 # Streamlit app layout
-st.title("📊 **Black-Scholes Option Pricing**")
+st.title("📊 **Black-Scholes Option Pricing Dashboard**")
 
 # Sidebar input
 col1, col2 = st.columns([1, 2])
@@ -107,17 +117,32 @@ if calc_button:
         st.success("✅ Calculation Complete")
         st.subheader("Option Price")
         st.metric("Black-Scholes Price", f"${option_price:.2f}")
-        st.markdown("This is the theoretical price of the option based on the Black-Scholes model. It accounts for factors such as the stock price, strike price, time to expiration, risk-free rate, and volatility.")
+        st.markdown("""
+            **Black-Scholes Option Price:** This is the theoretical price of the option, 
+            calculated using the Black-Scholes formula. The formula incorporates several factors:
+            - **Stock price (S):** The current price of the underlying stock.
+            - **Strike price (K):** The price at which the option holder can buy or sell the stock.
+            - **Time to expiration (T):** The remaining time until the option expires, usually in years.
+            - **Risk-free rate (r):** The theoretical rate of return on a risk-free investment, such as a government bond.
+            - **Volatility (σ):** The degree to which the stock price fluctuates, representing the risk of the stock.
+
+            **Theoretical Price Interpretation:** If the option price is calculated to be $5, it means that, under ideal conditions, the option would cost $5 based on these parameters. A higher stock price, longer time to expiration, or higher volatility generally leads to a more expensive option.
+
+        """)
         
         st.subheader("Greeks")
         for greek, value in greeks.items():
             st.write(f"**{greek}:** {value:.4f}")
         st.markdown("""
-            - **Delta**: Sensitivity of the option price to changes in the stock price.
-            - **Gamma**: Sensitivity of Delta to changes in the stock price.
-            - **Vega**: Sensitivity of the option price to changes in volatility.
-            - **Theta**: Sensitivity of the option price to the passage of time (time decay).
-            - **Rho**: Sensitivity of the option price to changes in the risk-free interest rate.
+            The **Greeks** represent the sensitivity of the option price to different factors:
+            - **Delta**: Measures how much the option price changes when the stock price changes. A **Delta** of 0.50 means that for every $1 increase in the stock price, the option price will increase by $0.50.
+            - **Gamma**: Measures how much **Delta** changes when the stock price changes. It indicates how sensitive the **Delta** is to stock price movements.
+            - **Vega**: Measures how much the option price changes when volatility changes. A higher **Vega** means the option is more sensitive to changes in volatility.
+            - **Theta**: Measures the effect of time on the option price. **Theta** represents time decay, indicating how much the option price will decrease as time passes, assuming other factors remain constant.
+            - **Rho**: Measures the sensitivity of the option price to changes in interest rates. If the risk-free rate increases, the option price may increase (for a call) or decrease (for a put).
+
+            These Greeks provide valuable insights into the potential movements of an option's price under different market conditions.
+
         """)
 
         # Plot Greeks vs Strike Price
@@ -143,8 +168,11 @@ if calc_button:
         )
         st.plotly_chart(greek_fig, use_container_width=True)
         st.markdown("""
-            The graph above shows how the Greeks change with different strike prices. 
-            This is useful to understand how the option price reacts to changes in strike price.
+            **Greeks vs Strike Price Graph**: This graph shows how the values of the Greeks change with different strike prices. 
+            It helps you understand how sensitive the option's price is to changes in strike price, stock price, and time. For instance:
+            - **Delta** tends to increase for calls as the strike price decreases (when in-the-money).
+            - **Gamma** shows the curvature in Delta, indicating how rapidly Delta changes with price movements.
+
         """)
 
         # Plot Stock Price over Time
@@ -159,8 +187,8 @@ if calc_button:
         )
         st.plotly_chart(stock_fig, use_container_width=True)
         st.markdown("""
-            The graph above shows the stock price movement over the last 30 days. 
-            This is important because the option price is closely tied to the price movement of the underlying stock.
+            **Stock Price Over Time**: This graph shows the stock's price movement over the last 30 days. 
+            It's crucial because the **option price** is directly tied to the stock price. Volatility, which affects the option's price, is also influenced by stock price movements.
         """)
 
     except Exception as e:
@@ -174,8 +202,13 @@ if show_chain:
         st.subheader(f"Option Chain for {ticker} ({expiry_str})")
         st.dataframe(options_df[['strike', 'lastPrice', 'bid', 'ask', 'impliedVolatility']])
         st.markdown("""
-            The option chain provides details on various options with different strike prices and expiration dates. 
-            It shows the current prices, bid-ask spreads, and implied volatility.
+            **Option Chain**: The option chain provides details on various options with different strike prices and expiration dates. 
+            The option chain includes:
+            - **Strike Price**: The price at which the option can be exercised.
+            - **Last Price**: The most recent price of the option.
+            - **Bid and Ask**: The highest price a buyer is willing to pay and the lowest price a seller is willing to accept.
+            - **Implied Volatility**: The market's expectation of the stock's future volatility, which plays a critical role in the option price.
+
         """)
     except Exception as e:
         st.error(f"❌ Error: {e}")
