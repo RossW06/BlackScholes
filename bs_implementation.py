@@ -6,6 +6,9 @@ from datetime import datetime, time
 import plotly.graph_objects as go
 import plotly.express as px
 
+# Set page config first
+st.set_page_config(page_title="Black-Scholes Option Pricing Dashboard", layout="wide")
+
 # Custom CSS for styling
 st.markdown("""
     <style>
