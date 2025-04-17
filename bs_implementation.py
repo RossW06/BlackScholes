@@ -126,8 +126,6 @@ if calc_button:
             - **Risk-free rate (r):** The theoretical rate of return on a risk-free investment, such as a government bond.
             - **Volatility (σ):** The degree to which the stock price fluctuates, representing the risk of the stock.
 
-            **Theoretical Price Interpretation:** If the option price is calculated to be $5, it means that, under ideal conditions, the option would cost $5 based on these parameters. A higher stock price, longer time to expiration, or higher volatility generally leads to a more expensive option.
-
         """)
         
         st.subheader("Greeks")
