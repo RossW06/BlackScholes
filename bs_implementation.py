@@ -174,4 +174,7 @@ if show_chain:
         st.subheader(f"Option Chain for {ticker} ({expiry_str})")
         st.dataframe(options_df[['strike', 'lastPrice', 'bid', 'ask', 'impliedVolatility']])
         st.markdown("""
-            The option chain provides details on various
+            The option chain provides details on various options with different strike prices and expiration dates. 
+            It shows the current prices, bid-ask spreads, and implied volatility.
+        """)
+    except Exception as e:
