@@ -178,3 +178,4 @@ if show_chain:
             It shows the current prices, bid-ask spreads, and implied volatility.
         """)
     except Exception as e:
+        st.error(f"❌ Error: {e}")
