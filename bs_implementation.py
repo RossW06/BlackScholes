@@ -110,13 +110,6 @@ ax.grid(True)
 ax.legend()
 st.pyplot(fig)
 
-st.markdown("""
-**Greeks vs Strike Price**:
-- Delta and Rho generally increase with strike for calls.
-- Gamma and Vega peak near the current stock price.
-- Theta is most negative near the money.
-""")
-
 # Stock price graph
 if show_graph and stock_data is not None:
     try:
