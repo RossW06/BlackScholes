@@ -13,42 +13,42 @@ st.title("📈 Black-Scholes Option Pricing Model")
 # Black-Scholes option pricing
 @st.cache_data
 def black_scholes_price(S, K, T, r, sigma, option_type='call'):
-    d1 = (np.log(S / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * np.sqrt(T))
-    d2 = d1 - sigma * np.sqrt(T)
+    try:
+        if S <= 0 or K <= 0 or T <= 0 or sigma <= 0:
+            return float('nan')
+        d1 = (np.log(S / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * np.sqrt(T))
+        d2 = d1 - sigma * np.sqrt(T)
+        if option_type == 'call':
+            return S * norm.cdf(d1) - K * np.exp(-r * T) * norm.cdf(d2)
+        else:
+            return K * np.exp(-r * T) * norm.cdf(-d2) - S * norm.cdf(-d1)
+    except:
+        return float('nan')
 
-    if option_type == 'call':
-        return S * norm.cdf(d1) - K * np.exp(-r * T) * norm.cdf(d2)
-    else:
-        return K * np.exp(-r * T) * norm.cdf(-d2) - S * norm.cdf(-d1)
-
-# Greeks calculation
 @st.cache_data
 def calculate_greeks(S, K, T, r, sigma, option_type='call'):
-    d1 = (np.log(S / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * np.sqrt(T))
-    d2 = d1 - sigma * np.sqrt(T)
-
-    delta = norm.cdf(d1) if option_type == 'call' else -norm.cdf(-d1)
-    gamma = norm.pdf(d1) / (S * sigma * np.sqrt(T))
-    vega = S * norm.pdf(d1) * np.sqrt(T) / 100
-    theta = (-S * norm.pdf(d1) * sigma / (2 * np.sqrt(T)) -
-             r * K * np.exp(-r * T) * norm.cdf(d2 if option_type == 'call' else -d2)) / 365
-    rho = (K * T * np.exp(-r * T) * norm.cdf(d2 if option_type == 'call' else -d2)) / 100
-
-    return {
-        'Delta': delta,
-        'Gamma': gamma,
-        'Vega': vega,
-        'Theta': theta,
-        'Rho': rho
-    }
+    try:
+        if S <= 0 or K <= 0 or T <= 0 or sigma <= 0:
+            return {g: float('nan') for g in ['Delta', 'Gamma', 'Vega', 'Theta', 'Rho']}
+        d1 = (np.log(S / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * np.sqrt(T))
+        d2 = d1 - sigma * np.sqrt(T)
+        delta = norm.cdf(d1) if option_type == 'call' else -norm.cdf(-d1)
+        gamma = norm.pdf(d1) / (S * sigma * np.sqrt(T))
+        vega = S * norm.pdf(d1) * np.sqrt(T) / 100
+        theta = (-S * norm.pdf(d1) * sigma / (2 * np.sqrt(T)) -
+                 r * K * np.exp(-r * T) * norm.cdf(d2 if option_type == 'call' else -d2)) / 365
+        rho = (K * T * np.exp(-r * T) * norm.cdf(d2 if option_type == 'call' else -d2)) / 100
+        return {'Delta': delta, 'Gamma': gamma, 'Vega': vega, 'Theta': theta, 'Rho': rho}
+    except:
+        return {g: float('nan') for g in ['Delta', 'Gamma', 'Vega', 'Theta', 'Rho']}
 
 # Sidebar inputs
 st.sidebar.header("Input Parameters")
 ticker = st.sidebar.text_input("Stock Ticker", value="AAPL")
 expiry = st.sidebar.date_input("Expiration Date", value=datetime(2025, 6, 21))
 strike_price = st.sidebar.number_input("Strike Price", min_value=1.0, value=180.0)
-risk_free_rate = st.sidebar.slider("Risk-Free Rate (annual %)", min_value=0.0, max_value=10.0, value=2.5) / 100
-volatility = st.sidebar.slider("Implied Volatility (annual %)", min_value=1.0, max_value=200.0, value=30.0) / 100
+risk_free_rate = st.sidebar.slider("Risk-Free Rate (annual %)", 0.0, 10.0, 2.5) / 100
+volatility = st.sidebar.slider("Implied Volatility (annual %)", 1.0, 200.0, 30.0) / 100
 option_type = st.sidebar.selectbox("Option Type", ["call", "put"])
 show_graph = st.sidebar.checkbox("Show Stock Price Chart", value=True)
 show_chain = st.sidebar.checkbox("Show Option Chain", value=False)
@@ -56,14 +56,30 @@ show_chain = st.sidebar.checkbox("Show Option Chain", value=False)
 # Fetch current stock data
 stock = yf.Ticker(ticker)
 stock_data = stock.history(period="1mo")
-current_price = stock.history(period="1d")['Close'][0]
+try:
+    current_price = stock.history(period="1d")['Close'][0]
+except Exception as e:
+    st.error("Failed to fetch stock data. Please check the ticker.")
+    st.stop()
+
 st.write(f"### Current {ticker} Price: ${current_price:.2f}")
 
 # Time to expiry in years
 time_to_expiry = (expiry - datetime.today().date()).days / 365
+if time_to_expiry <= 0:
+    st.error("⛔ Expiration date must be in the future.")
+    st.stop()
+
+if current_price <= 0 or strike_price <= 0 or volatility <= 0:
+    st.error("⛔ Invalid input values: prices and volatility must be positive.")
+    st.stop()
 
 # Pricing and Greeks
 option_price = black_scholes_price(current_price, strike_price, time_to_expiry, risk_free_rate, volatility, option_type)
+if np.isnan(option_price):
+    st.error("⚠️ Option price calculation returned NaN. Check your input parameters.")
+    st.stop()
+
 greeks = calculate_greeks(current_price, strike_price, time_to_expiry, risk_free_rate, volatility, option_type)
 
 st.subheader("Option Price and Greeks")
@@ -126,7 +142,6 @@ if show_graph and stock_data is not None:
         **Stock Price Over Time**: 
         This shows recent stock price movement. Black-Scholes uses current price and assumes log-normal behavior, so recent trends help contextualize the model.
         """)
-
     except Exception as e:
         st.error(f"❌ Error: {e}")
 
