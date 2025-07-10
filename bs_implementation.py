@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import yfinance as yf
 from scipy.stats import norm
 from datetime import datetime
+from datetime import timedelta
 
 # Page config MUST come first
 st.set_page_config(page_title="Black-Scholes Option Pricing Dashboard", layout="wide")
@@ -45,7 +46,7 @@ def calculate_greeks(S, K, T, r, sigma, option_type='call'):
 # Sidebar inputs
 st.sidebar.header("Input Parameters")
 ticker = st.sidebar.text_input("Stock Ticker", value="AAPL")
-expiry = st.sidebar.date_input("Expiration Date", value=datetime(2025, 6, 21))
+expiry = st.sidebar.date_input("Expiration Date", value=datetime.today().date() + timedelta(days=1))
 strike_price = st.sidebar.number_input("Strike Price", min_value=1.0, value=180.0)
 risk_free_rate = st.sidebar.slider("Risk-Free Rate (annual %)", 0.0, 10.0, 2.5) / 100
 volatility = st.sidebar.slider("Implied Volatility (annual %)", 1.0, 200.0, 30.0) / 100
